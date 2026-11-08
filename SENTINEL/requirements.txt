@@ -1,0 +1,10 @@
+# SENTINEL core runtime (CPython 3.13 x64, Windows 11). Versi dikunci setelah smoke test: lihat docs/README.
+customtkinter
+Pillow
+cryptography
+argon2-cffi
+keyring
+platformdirs
+# Hash wheel cp313 win_amd64 0.6.5 di PyPI: c3b5f2afc45a64d987dde007c8ef7d21f47014dcf85633c29cccdd764cdedec3
+# (0.6.5 baru dirilis 5 Nov 2026; 0.6.4 juga punya wheel cp313 win_amd64 jika ingin rilis yang lebih matang)
+sqlcipher3==0.6.5
