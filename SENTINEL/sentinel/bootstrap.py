@@ -14,6 +14,7 @@ from sentinel.security.file_crypto import FileCrypto
 from sentinel.security.key_manager import KeyManager
 from sentinel.security.message_crypto import MessageCrypto
 from sentinel.security.password_hasher import PasswordHasher
+from sentinel.services.account_security_service import AccountSecurityService
 from sentinel.services.audit_service import AuditService
 from sentinel.services.auth_service import AuthService
 from sentinel.services.biometric_service import BiometricService
@@ -63,6 +64,8 @@ class AppContext:
                                           devices.face, devices.camera, self.perms, self.audit, users)
         self.auth = AuthService(db, users, self.hasher, self.usb, self.biometric, self.audit,
                                 settings.max_login_attempts, settings.lockout_seconds)
+        self.account = AccountSecurityService(db, users, bio_r, usb_r, self.hasher, self.perms, self.audit,
+                                              settings.max_login_attempts, settings.lockout_seconds)
         self.cases = CaseService(db, cases, users, self.perms, self.audit)
         self.evidence = EvidenceService(db, evid, cases, FileCrypto(keys.get("file_key")), self.perms, self.audit,
                                         settings.evidence_dir, settings.max_file_bytes, _ext(settings))
@@ -72,8 +75,10 @@ class AppContext:
         self._users_repo = users
 
     def needs_usb_setup(self) -> bool:
-        """DB + admin exist but no USB is registered (interrupted first-run, or USB revoked)."""
-        return self._users_repo.count() > 0 and not self.usb.has_active_device()
+        """No USB is registered although an active Admin must present one at login (interrupted first-run, or USB
+        revoked). Admins who switched the USB requirement off, and other accounts, are never blocked by this."""
+        return (self._users_repo.count() > 0 and not self.usb.has_active_device()
+                and self._users_repo.count_active_admins_requiring_usb() > 0)
 
     def close(self) -> None:
         self.db.close_all()
@@ -101,6 +106,8 @@ def open_existing(settings: Settings, devices: Devices | None = None) -> AppCont
             "yang sama atau pindahkan folder data lama sebelum setup ulang.")
     db = Database(settings.db_path, keys.get("db_key"))
     db.conn()  # fail fast: verifies SQLCipher + key
+    if db.migrate():  # adds per-account auth settings / recovery code columns to databases from v1.2
+        R.SettingsRepo(db).set("schema_version", "2", now_iso())
     return AppContext(settings, keys, db, devices or default_devices(settings))
 
 
@@ -124,7 +131,7 @@ def first_run(settings: Settings, username: str, full_name: str, password: str,
     ctx = AppContext(settings, keys, db, devices or default_devices(settings))
     ctx.audit.record("LEDGER_GENESIS", details={"note": "genesis block"})
     admin = ctx.users.create_initial_admin(username, full_name, password)
-    R.SettingsRepo(db).set("schema_version", "1", now_iso())
+    R.SettingsRepo(db).set("schema_version", "2", now_iso())
     ctx.audit.record("FIRST_RUN_COMPLETED", actor_id=admin.id)
     return ctx, admin
 

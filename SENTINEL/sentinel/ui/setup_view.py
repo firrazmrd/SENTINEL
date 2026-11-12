@@ -62,15 +62,39 @@ class SetupView(ctk.CTkFrame):
         self.btn.configure(state="disabled")
         self.msg.configure(text="Membuat database terenkripsi…", text_color=C.MUTED)
         args = (self.app.settings, self.f_user.get(), self.f_name.get(), self.f_pw.get(), self.app._devices)
+        password = args[3]
+
+        def work() -> tuple:
+            ctx, admin = bootstrap.first_run(*args)
+            return ctx, admin, ctx.account.regenerate_recovery_code(admin, password)  # first recovery code
 
         def ok(res: Any) -> None:
-            self.app.ctx, self.admin = res
-            self._step_usb()
+            self.app.ctx, self.admin, self.recovery_code = res
+            self._step_code()
 
         def err(exc: BaseException) -> None:
             self.btn.configure(state="normal")
             self.msg.configure(text=self.app.describe_error(exc), text_color=C.ERR)
-        self.app.run(lambda: bootstrap.first_run(*args), ok, err)
+        self.app.run(work, ok, err)
+
+    # -- step 1b: recovery code ----------------------------------------------------
+    def _step_code(self) -> None:
+        self._clear("Kode Pemulihan Admin", "Simpan kode ini sekarang. Kode hanya ditampilkan sekali dan dipakai pada "
+                    "Lupa Password di halaman login. Kode bisa dibuat ulang di Settings.")
+        ctk.CTkLabel(self.box, text=self.recovery_code, width=340, height=56, corner_radius=8, fg_color=C.PANEL_2,
+                     text_color=C.TEXT, font=ctk.CTkFont(family="Consolas", size=22, weight="bold")).pack(pady=6)
+        self.copy_btn = ctk.CTkButton(self.box, text="Salin Kode", width=340, fg_color=C.PANEL_2, hover_color="#22324f",
+                                      command=self._copy_code)
+        self.copy_btn.pack(pady=4)
+        self._footer("Saya sudah menyimpan kode ini", self._continue_to_usb)
+
+    def _copy_code(self) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(self.recovery_code)
+        self.copy_btn.configure(text="Tersalin ✓")
+
+    def _continue_to_usb(self) -> None:
+        self._step_usb()
 
     # -- step 2 ----------------------------------------------------------------
     def _step_usb(self) -> None:

@@ -55,6 +55,10 @@ def test_full_gui_flow(app):
     for e, v in ((view.f_user, "admin"), (view.f_name, "Admin Utama"), (view.f_pw, PASSWORD), (view.f_pw2, PASSWORD)):
         e.insert(0, v)
     view._create_admin()
+    wait(app, lambda: getattr(view, "recovery_code", None))      # first Admin gets a recovery code at creation
+    from sentinel.security import recovery_code as rc
+    assert rc.is_well_formed(view.recovery_code)
+    view._continue_to_usb()
     wait(app, lambda: app.ctx is not None and getattr(view, "_drives", None))
     view._do_register()
     wait(app, lambda: isinstance(app._frame, LoginView))
@@ -64,11 +68,10 @@ def test_full_gui_flow(app):
     login.submit()
     wait(app, lambda: login.msg.cget("text") == "Username atau password salah.")
     login.pw.delete(0, "end"); login.pw.insert(0, PASSWORD)
-    login.face.deselect()
     login.submit()
     wait(app, lambda: isinstance(app._frame, MainShell))
     shell = app._frame
-    for key in ("cases", "evidence", "messages", "stego", "ledger", "audit", "users", "profile", "dashboard"):
+    for key in ("cases", "evidence", "messages", "stego", "ledger", "audit", "users", "settings", "dashboard"):
         shell.navigate(key)
         pump(app, 0.6)
         assert not app.errors, (key, app.errors)
@@ -83,6 +86,21 @@ def test_full_gui_flow(app):
     u.n_user.insert(0, "invest"); u.n_name.insert(0, "Investigator Satu"); u.n_pw.insert(0, PASSWORD)
     u.create()
     wait(app, lambda: len(u.table.tree.get_children()) == 2)
+    for w in app.winfo_children():                          # the Admin is shown the new user's recovery code
+        if w.winfo_class() == "Toplevel":
+            w.destroy()
+    # settings page: real status, apply persists to the account
+    shell.navigate("settings"); pump(app, 0.6)
+    st = shell._view
+    wait(app, lambda: st._saved is not None)
+    assert st.usb_status.cget("text") == "USB dongle: terdaftar" and st.face_status.cget("text") == "Wajah: belum terdaftar"
+    assert st.rec_status.cget("text") == "Kode pemulihan: sudah dibuat"
+    assert st.cb_usb.get() == 1 and st.cb_face.get() == 0
+    st.cb_face.select(); st.apply()                          # no template yet -> rejected by the service
+    wait(app, lambda: "Daftarkan wajah" in st._status.cget("text"))
+    wait(app, lambda: st.cb_face.get() == 0)                  # checkbox snaps back to the saved state
+    st.search_usb(); pump(app, 0.4)
+    assert not app.errors
     # ledger verify through the UI
     shell.navigate("ledger"); pump(app, 0.5)
     ledger = shell._view

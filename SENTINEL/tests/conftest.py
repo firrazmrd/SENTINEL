@@ -43,9 +43,26 @@ class FakeUsb:
         return list(self.drives)
 
 
+class FakeStream:
+    def __init__(self, cam) -> None:
+        self.cam, self.closed = cam, False
+
+    def latest(self):
+        return self.cam.frames[0] if self.cam.frames else None
+
+    def grab(self, count, interval=0.4):
+        return list(self.cam.frames[:count])
+
+    def close(self):
+        self.closed = True
+
+
 class FakeCamera:
     def __init__(self) -> None:
         self.frames = ["alice"] * 3
+
+    def open_stream(self):
+        return FakeStream(self)
 
     def capture_frames(self, count=1, interval=0.4):
         return list(self.frames[:count]) if len(self.frames) >= count else list(self.frames)
@@ -89,7 +106,7 @@ class Env:
     def make_user(self, role: str, username: str | None = None) -> CurrentUser:
         username = username or f"{role.lower()}_{random.randint(1000, 9999)}"
         self.ctx.users.create_user(self.admin, username, username.title(), PASSWORD, role)
-        return self.ctx.auth.login(username, PASSWORD, biometric_enabled=False)
+        return self.ctx.auth.login(username, PASSWORD)
 
 
 @pytest.fixture

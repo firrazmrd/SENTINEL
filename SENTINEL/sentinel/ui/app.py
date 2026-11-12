@@ -24,7 +24,7 @@ NAV = [  # (key, label, action required to see the menu entry; services enforce 
     ("ledger", "Integrity Ledger", Action.VERIFY_LEDGER),
     ("audit", "Activity Logs", Action.VIEW_AUDIT),
     ("users", "User Management", Action.MANAGE_USERS),
-    ("profile", "Profile", Action.MANAGE_OWN_FACE),
+    ("settings", "Settings", Action.MANAGE_OWN_SECURITY),
 ]
 
 
@@ -35,12 +35,12 @@ def view_classes() -> dict[str, type]:
     from sentinel.ui.evidence_view import EvidenceView
     from sentinel.ui.ledger_view import LedgerView
     from sentinel.ui.messages_view import MessagesView
-    from sentinel.ui.profile_view import ProfileView
+    from sentinel.ui.settings_view import SettingsView
     from sentinel.ui.steganography_view import SteganographyView
     from sentinel.ui.users_view import UsersView
     return {"dashboard": DashboardView, "cases": CasesView, "evidence": EvidenceView, "messages": MessagesView,
             "stego": SteganographyView, "ledger": LedgerView, "audit": AuditView, "users": UsersView,
-            "profile": ProfileView}
+            "settings": SettingsView}
 
 
 class MainShell(ctk.CTkFrame):

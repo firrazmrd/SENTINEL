@@ -49,6 +49,10 @@ Setelah semua lulus **di Windows**: `.\scripts\make_lock.ps1` membuat `requireme
 First-run: buat Admin → pasang satu flash drive → aplikasi menulis marker `.sentinel-token` dan mendaftarkannya.
 Key (db, pesan, file, biometrik; masing-masing 256-bit acak) dibuat otomatis dan **hanya** disimpan di Windows Credential Manager.
 
+## Halaman Settings
+
+Menu **Settings** (semua role) menggantikan halaman Profile: pendaftaran wajah dengan pratinjau webcam langsung, pencarian/pembuatan USB dongle, checkbox wajib wajah/USB + **Terapkan**, **Ganti Password**, dan **Buat Ulang Kode Pemulihan**. Database v1.2 dimigrasi otomatis saat dibuka (kolom `require_face`, `require_usb`, `recovery_code_hash`, `recovery_code_created_at`; akun yang sudah punya template wajah diberi `require_face=1`).
+
 ## Konfigurasi non-secret (environment variable, lihat `.env.example`)
 
 `SENTINEL_DATA_DIR` (default `%LOCALAPPDATA%\SENTINEL`), `DEEPFACE_HOME` (default `<data>\models`),
@@ -78,7 +82,9 @@ Otorisasi ditegakkan di service (membaca ulang role/status akun dari DB pada set
 
 - USB flash drive biasa = faktor kepemilikan sederhana; **dapat dikloning**. Bukan hardware token.
 - Face verification = pencocokan 1:1; **tanpa liveness/anti-spoofing**.
-- Switch Face Verification OFF hanya melewati verifikasi wajah; password dan USB tetap wajib; dicatat di audit (`BIOMETRIC_SKIPPED`).
+- Faktor login diatur **per akun** di Settings → Faktor Autentikasi (bukan lagi switch di layar login). Password selalu wajib; USB dan wajah wajib hanya jika dicentang akun tersebut (default akun baru: USB wajib, wajah tidak). Mode tiap faktor dicatat di audit `LOGIN_SUCCESS`. Menonaktifkan faktor menuntut password saat ini.
+- USB dongle tetap **satu USB global**; hanya Admin yang dapat membuat/mengganti. Akun lain hanya memilih mewajibkannya atau tidak.
+- Kode pemulihan (Settings → Akun Pemulihan): 80-bit acak, hanya hash Argon2id yang disimpan, sekali pakai (setelah dipakai pada *Lupa Password* otomatis diganti kode baru), percobaan salah ikut lockout. Kode dibuat otomatis saat akun dibuat (Admin pertama: layar setup; pengguna lain: ditampilkan ke Admin yang membuatnya, pemilik dapat membuat ulang sendiri di Settings). Akun hasil migrasi v1.2 belum punya kode dan harus membuatnya di Settings. Reset password tidak melewati USB/wajah saat login.
 - Vigenère = demonstrasi cipher klasik; perlindungan nyata dari AES-256-GCM / ChaCha20-Poly1305.
 - SQLCipher + keyring melindungi data di disk, **bukan** dari proses lain pada akun Windows yang sama; login bukan faktor kriptografis atas key.
 - LSB menyamarkan keberadaan data, bukan enkripsi dan bukan anti-deteksi.

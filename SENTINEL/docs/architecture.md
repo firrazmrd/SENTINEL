@@ -32,7 +32,9 @@ Tidak ada per-object DEK, wrapped key, rotasi key, chunked encryption, HKDF, ata
 
 ## Login (SRS 6.1)
 
-username+password (Argon2id, hash dummy untuk user tak dikenal) → lockout 5 gagal/30 dtk → akun ACTIVE → USB (marker + token hash + serial volume, `hmac.compare_digest`) → Face Verification bila switch ON (1:1 ArcFace, jarak kosinus ≤ threshold dari DeepFace) → audit.
+username+password (Argon2id, hash dummy untuk user tak dikenal) → lockout 5 gagal/30 dtk → akun ACTIVE → USB bila `users.require_usb` (marker + token hash + serial volume, `hmac.compare_digest`) → Face Verification bila `users.require_face` (1:1 ArcFace, jarak kosinus ≤ threshold dari DeepFace) → audit. Pengaturan ini diubah lewat `AccountSecurityService` (halaman Settings); melemahkan login butuh password saat ini.
+
+Lupa Password: `AuthService.reset_password_with_recovery_code` (kode sekali pakai, di-hash Argon2id, ikut lockout, kode dirotasi setelah dipakai).
 Pesan gagal pada tahap password dibuat generik; password/username salah tidak dicatat mentah.
 
 ## Biometrik

@@ -5,6 +5,7 @@ import uuid
 
 from sentinel.database.connection import Database
 from sentinel.database.repositories import UserRepo
+from sentinel.security import recovery_code
 from sentinel.security.password_hasher import PasswordHasher
 from sentinel.services.audit_service import AuditService
 from sentinel.services.permission_service import ROLES, Action, CurrentUser, PermissionService
@@ -15,7 +16,7 @@ _USERNAME = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
 MIN_PASSWORD = 8
 
 
-def _check_password(password: str) -> None:
+def check_password_policy(password: str) -> None:
     if len(password) < MIN_PASSWORD:
         raise ValidationError(f"Password minimal {MIN_PASSWORD} karakter.")
 
@@ -37,7 +38,7 @@ class UserService:
             raise ValidationError("Nama lengkap wajib diisi.")
         if role not in ROLES:
             raise ValidationError("Role tidak valid.")
-        _check_password(password)
+        check_password_policy(password)
         if self._repo.get_by_username(username):
             raise ValidationError("Username sudah dipakai.")
         return {"id": str(uuid.uuid4()), "username": username, "password_hash": self._hasher.hash(password),
@@ -57,11 +58,14 @@ class UserService:
     def create_user(self, actor: CurrentUser, username: str, full_name: str, password: str, role: str) -> dict:
         actor = self._perms.authorize(actor, Action.MANAGE_USERS)
         row = self._new_row(username, full_name, password, role)
+        code = recovery_code.generate()   # shown once to the Admin to hand over; the owner can regenerate in Settings
+        row["recovery_code_hash"] = self._hasher.hash(recovery_code.normalize(code))
+        row["recovery_code_created_at"] = row["created_at"]
         with self._db.transaction():
             self._repo.insert(row)
             self._audit.record("USER_CREATED", actor_id=actor.id, target_type="user", target_id=row["id"],
-                               details={"role": role})
-        return public_user(row)
+                               details={"role": role, "recovery_code_issued": True})
+        return {**public_user(row), "recovery_code": code}
 
     def list_users(self, actor: CurrentUser) -> list[dict]:
         self._perms.authorize(actor, Action.MANAGE_USERS)
@@ -97,7 +101,7 @@ class UserService:
             if status == "ACTIVE":
                 fields.update(failed_attempts=0, locked_until=None)
         if new_password:
-            _check_password(new_password)
+            check_password_policy(new_password)
             fields["password_hash"] = self._hasher.hash(new_password)
             fields.update(failed_attempts=0, locked_until=None)
         if not fields:

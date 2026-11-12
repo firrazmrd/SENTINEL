@@ -69,8 +69,15 @@ class UsersView(C.BaseView):
 
     def create(self) -> None:
         ctx, user, a = self.ctx, self.user, (self.n_user.get(), self.n_name.get(), self.n_pw.get(), self.n_role.get())
-        self.app.run(lambda: ctx.users.create_user(user, *a),
-                     lambda u: (self.say(f"Pengguna {u['username']} dibuat.", "ok"), self.n_pw.delete(0, "end"), self.refresh()), self.fail)
+        def created(u: dict) -> None:
+            from sentinel.ui.dialogs import RecoveryCodeDialog
+            self.say(f"Pengguna {u['username']} dibuat.", "ok")
+            self.n_pw.delete(0, "end")
+            self.refresh()
+            RecoveryCodeDialog(self.app, u["recovery_code"],
+                               f"Kode pemulihan untuk {u['username']}. Serahkan ke pemilik akun; ia dapat "
+                               "membuat ulang kodenya sendiri di Settings (kode ini lalu tidak berlaku).")
+        self.app.run(lambda: ctx.users.create_user(user, *a), created, self.fail)
 
     def update(self) -> None:
         sel = self.table.selected()

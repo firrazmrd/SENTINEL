@@ -8,7 +8,11 @@ CREATE TABLE IF NOT EXISTS users (
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT NULL,
     created_at TEXT NOT NULL,
-    last_login_at TEXT NULL
+    last_login_at TEXT NULL,
+    require_face INTEGER NOT NULL DEFAULT 0 CHECK (require_face IN (0,1)),
+    require_usb INTEGER NOT NULL DEFAULT 1 CHECK (require_usb IN (0,1)),
+    recovery_code_hash TEXT NULL,
+    recovery_code_created_at TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS usb_devices (

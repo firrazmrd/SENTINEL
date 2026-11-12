@@ -31,12 +31,17 @@ class UserRepo(_Repo):
 
     def insert(self, row: Row) -> None:
         self.db.run(
-            "INSERT INTO users(id,username,password_hash,full_name,role,status,failed_attempts,created_at) "
-            "VALUES(:id,:username,:password_hash,:full_name,:role,:status,0,:created_at)", row)
+            "INSERT INTO users(id,username,password_hash,full_name,role,status,failed_attempts,created_at,"
+            "recovery_code_hash,recovery_code_created_at) VALUES(:id,:username,:password_hash,:full_name,:role,"
+            ":status,0,:created_at,:recovery_code_hash,:recovery_code_created_at)",
+            {"recovery_code_hash": None, "recovery_code_created_at": None, **row})
 
     def update(self, user_id: str, **fields: Any) -> None:
         cols = ", ".join(f"{k}=:{k}" for k in fields)
         self.db.run(f"UPDATE users SET {cols} WHERE id=:_id", {**fields, "_id": user_id})
+
+    def count_active_admins_requiring_usb(self) -> int:
+        return self.db.scalar("SELECT count(*) FROM users WHERE role='ADMIN' AND status='ACTIVE' AND require_usb=1")
 
     def by_role(self, role: str, only_active: bool = True) -> list[Row]:
         sql = "SELECT * FROM users WHERE role=?" + (" AND status='ACTIVE'" if only_active else "")

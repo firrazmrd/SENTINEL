@@ -4,9 +4,9 @@ Persiapan: `.\scripts\run_app.ps1`; siapkan satu flash drive kosong untuk demo. 
 `investigator1`, `analyst1`, `auditor1` (password `Demo-Pass-123`), `CASE-001`, satu bukti, dan satu pesan.
 
 1. **First-run**: buat Admin → pasang flash drive → "Daftarkan USB". Jelaskan: key acak di Credential Manager, database SQLCipher.
-2. **Login Admin**: password + USB; Face Verification ON (butuh enrollment di *Profile*) atau OFF — jelaskan OFF hanya melewati wajah dan dicatat.
+2. **Login Admin**: password + USB; daftarkan wajah di *Settings*, centang "Wajibkan verifikasi wajah saat login" lalu *Terapkan*; menonaktifkannya butuh password dan dicatat di audit.
 3. **User Management**: Admin membuat Investigator, Forensic Analyst, Auditor. Logout.
-4. **Investigator**: login (switch wajah OFF untuk cepat). *Cases* → buat `CASE-001`. (Admin menugaskan Analyst: login Admin → *Cases* → pilih kasus → Tugaskan; SRS 4.2.)
+4. **Investigator**: login (password + USB; wajah tidak wajib secara default). *Cases* → buat `CASE-001`. (Admin menugaskan Analyst: login Admin → *Cases* → pilih kasus → Tugaskan; SRS 4.2.)
 5. **Upload bukti**: *Evidence* → pilih kasus → Upload file dummy → tampilkan SHA-256 sumber; tunjukkan file `.sntenc` di `<DATA_DIR>\evidence\CASE-001\` tidak berisi teks asli.
 6. **Pesan**: *Secure Messages* → kirim ke Analyst (Vigenère + AES-256-GCM). Tunjukkan `messages.ciphertext` hanya blob (jelaskan di slide, DB terenkripsi).
 7. **Steganografi**: pilih PNG, tulis pesan, simpan sebagai PNG baru; lalu ekstrak.

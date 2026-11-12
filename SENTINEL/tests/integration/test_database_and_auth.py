@@ -10,12 +10,12 @@ from sentinel.database.connection import Database
 from sentinel.utils.exceptions import (
     AccountLockedError,
     AuthenticationError,
-    BiometricError,
     DatabaseKeyError,
     KeyMissingError,
     PermissionDeniedError,
     StartupError,
     UsbValidationError,
+    ValidationError,
 )
 
 
@@ -68,12 +68,12 @@ def test_login_requires_password_and_usb(env):
     u = env.make_user("INVESTIGATOR", "invest")
     assert u.role == "INVESTIGATOR"
     with pytest.raises(AuthenticationError):
-        env.ctx.auth.login("invest", "salah-salah", False)
+        env.ctx.auth.login("invest", "salah-salah")
     with pytest.raises(AuthenticationError):
-        env.ctx.auth.login("tidak-ada", PASSWORD, False)
+        env.ctx.auth.login("tidak-ada", PASSWORD)
     env.usb.drives = []                                    # USB removed
     with pytest.raises(UsbValidationError):
-        env.ctx.auth.login("invest", PASSWORD, False)
+        env.ctx.auth.login("invest", PASSWORD)
 
 
 def test_usb_wrong_marker_or_serial_rejected(env):
@@ -82,50 +82,50 @@ def test_usb_wrong_marker_or_serial_rejected(env):
     good = marker.read_text()
     marker.write_text(good.replace(good.split('"token": "')[1][:4], "ffff", 1))   # forged token
     with pytest.raises(UsbValidationError):
-        env.ctx.auth.login("aud", PASSWORD, False)
+        env.ctx.auth.login("aud", PASSWORD)
     marker.write_text(good)
-    assert env.ctx.auth.login("aud", PASSWORD, False)
+    assert env.ctx.auth.login("aud", PASSWORD)
     from sentinel.devices.usb_windows import DriveInfo
     env.usb.drives = [DriveInfo(env.usb.drives[0].mount, "X", "11111111")]          # different volume (clone elsewhere)
     with pytest.raises(UsbValidationError):
-        env.ctx.auth.login("aud", PASSWORD, False)
+        env.ctx.auth.login("aud", PASSWORD)
 
 
 def test_revoked_usb_rejected_and_reregistration(env):
     env.make_user("AUDITOR", "aud")
     env.ctx.usb.revoke(env.admin)
     with pytest.raises(UsbValidationError):
-        env.ctx.auth.login("aud", PASSWORD, False)
+        env.ctx.auth.login("aud", PASSWORD)
     assert env.ctx.needs_usb_setup()
     env.ctx.usb.register_when_none_active(env.admin, env.usb.drives[0])
-    assert env.ctx.auth.login("aud", PASSWORD, False)
+    assert env.ctx.auth.login("aud", PASSWORD)
 
 
-def test_biometric_switch_semantics(env):
-    env.make_user("INVESTIGATOR", "invest")
-    with pytest.raises(BiometricError):                    # ON but no template
-        env.ctx.auth.login("invest", PASSWORD, True)
-    env.ctx.auth.login("invest", PASSWORD, False)           # OFF skips ONLY the face check
-    events = [r["event_type"] for r in env.ctx.db.all("SELECT event_type FROM audit_logs")]
-    assert "BIOMETRIC_SKIPPED" in events
-    with pytest.raises(AuthenticationError):                # password still mandatory when OFF
-        env.ctx.auth.login("invest", "salah-salah", False)
+def test_face_requirement_is_per_account_setting(env):
+    u = env.make_user("INVESTIGATOR", "invest")
+    env.ctx.auth.login("invest", PASSWORD)                  # default: face not required, password + USB still are
+    with pytest.raises(ValidationError):                    # cannot require a face that is not enrolled
+        env.ctx.account.apply_auth_requirements(u, require_face=True, require_usb=True)
+    with pytest.raises(AuthenticationError):                # password stays mandatory
+        env.ctx.auth.login("invest", "salah-salah")
+    events = [r["details_json"] for r in env.ctx.db.all("SELECT details_json FROM audit_logs WHERE event_type='LOGIN_SUCCESS'")]
+    assert any('"biometric":"NOT_REQUIRED"' in e for e in events)
 
 
 def test_lockout_after_repeated_failures(env):
     env.make_user("AUDITOR", "aud")
     for _ in range(5):
         with pytest.raises(AuthenticationError):
-            env.ctx.auth.login("aud", "salah-salah", False)
+            env.ctx.auth.login("aud", "salah-salah")
     with pytest.raises(AccountLockedError):
-        env.ctx.auth.login("aud", PASSWORD, False)         # even the right password is refused during cooldown
+        env.ctx.auth.login("aud", PASSWORD)         # even the right password is refused during cooldown
 
 
 def test_disabled_account_and_stale_session(env):
     u = env.make_user("INVESTIGATOR", "invest")
     env.ctx.users.update_user(env.admin, u.id, status="DISABLED")
     with pytest.raises(AuthenticationError):
-        env.ctx.auth.login("invest", PASSWORD, False)
+        env.ctx.auth.login("invest", PASSWORD)
     with pytest.raises(PermissionDeniedError):             # old in-memory session is useless once disabled
         env.ctx.cases.list_cases(u)
 
@@ -143,7 +143,7 @@ def test_user_management_rules(env):
 def test_no_secret_in_audit(env):
     env.make_user("AUDITOR", "aud")
     with pytest.raises(AuthenticationError):
-        env.ctx.auth.login("aud", "typed-password-xyz", False)
+        env.ctx.auth.login("aud", "typed-password-xyz")
     dump = str(env.ctx.db.all("SELECT * FROM audit_logs"))
     assert "typed-password-xyz" not in dump and PASSWORD not in dump
     with pytest.raises(ValueError):

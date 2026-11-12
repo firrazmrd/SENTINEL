@@ -6,7 +6,7 @@ import uuid
 
 from sentinel.database.connection import Database
 from sentinel.database.repositories import BiometricRepo, SettingsRepo
-from sentinel.devices.camera import CameraSource
+from sentinel.devices.camera import CameraSource, FrameStream
 from sentinel.devices.face_engine import FaceEngine
 from sentinel.security.biometric_crypto import BiometricCrypto
 from sentinel.services.audit_service import AuditService
@@ -48,9 +48,23 @@ class BiometricService:
         return None if t is None else {k: t[k] for k in ("model_name", "detector_backend", "embedding_dim",
                                                          "distance_metric", "threshold", "updated_at")}
 
+    def open_preview(self, actor: CurrentUser) -> FrameStream:
+        """Live camera session for the Settings enrollment dialog. The caller must close() it."""
+        self._perms.authorize(actor, Action.MANAGE_OWN_FACE)
+        return self._camera.open_stream()
+
     def enroll(self, actor: CurrentUser) -> None:
         actor = self._perms.authorize(actor, Action.MANAGE_OWN_FACE)
-        frames = self._camera.capture_frames(ENROLL_FRAMES)
+        self._store_template(actor, self._camera.capture_frames(ENROLL_FRAMES))
+
+    def enroll_from_frames(self, actor: CurrentUser, frames: list) -> None:
+        """Same pipeline as enroll(), but with frames the user captured from the live preview."""
+        actor = self._perms.authorize(actor, Action.MANAGE_OWN_FACE)
+        self._store_template(actor, frames)
+
+    def _store_template(self, actor: CurrentUser, frames: list) -> None:
+        if not frames:
+            raise BiometricError("Tidak ada gambar dari kamera.")
         embeddings = [_normalize(self._engine.embed(f)) for f in frames]  # each frame must have exactly one face
         mean = _normalize([sum(col) / len(col) for col in zip(*embeddings)])
         threshold, source = self._engine.threshold()
@@ -76,14 +90,16 @@ class BiometricService:
             raise NotFoundError("Pengguna tidak ditemukan.")
         with self._db.transaction():
             self._repo.delete(user_id)
+            # No template => the face requirement can never be met; switch it off so the account is not locked out.
+            self._users.update(user_id, require_face=0)
             self._audit.record("BIOMETRIC_TEMPLATE_DELETED", actor_id=actor.id, target_type="user", target_id=user_id)
 
     def verify(self, user_id: str) -> float:
         """Raises BiometricError unless the live face matches the stored template. Returns the distance."""
         tpl = self._repo.get(user_id)
         if tpl is None:
-            raise BiometricError("Akun ini belum memiliki template wajah. Matikan switch Face Verification "
-                                 "untuk login, lalu daftarkan wajah dari halaman Profile.")
+            raise BiometricError("Akun ini mewajibkan verifikasi wajah tetapi belum memiliki template wajah. "
+                                 "Hubungi Admin untuk mereset pengaturan wajah.")
         if (tpl["model_name"], tpl["detector_backend"], tpl["distance_metric"]) != (
                 self._engine.model_name, self._engine.detector_backend, self._engine.distance_metric):
             raise BiometricError("Template wajah dibuat dengan konfigurasi lain; daftarkan ulang wajah.")

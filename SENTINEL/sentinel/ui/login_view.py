@@ -23,15 +23,11 @@ class LoginView(ctk.CTkFrame):
         self.pw.pack(pady=5)
         self.usb = ctk.CTkLabel(box, text="USB: memeriksa…", font=C.font(12), text_color=C.MUTED)
         self.usb.pack(pady=(10, 2))
-        self.face = ctk.CTkSwitch(box, text="Face Verification", progress_color=C.ACCENT, font=C.font(12))
-        self.face.select()  # default ON
-        self.face.pack(pady=(6, 0))
-        self.face_note = ctk.CTkLabel(box, text="", font=C.font(10), text_color=C.WARN, wraplength=320)
-        self.face_note.pack()
-        self.face.configure(command=self._face_toggled)
         self.btn = ctk.CTkButton(box, text="Login", width=320, height=40, font=C.font(14, "bold"), fg_color=C.ACCENT,
                                  hover_color=C.ACCENT_HOVER, text_color="#04211f", command=self.submit)
-        self.btn.pack(pady=(12, 6))
+        self.btn.pack(pady=(12, 2))
+        ctk.CTkButton(box, text="Lupa Password?", width=320, height=28, fg_color="transparent", hover_color=C.PANEL_2,
+                      text_color=C.MUTED, font=C.font(12), command=self.forgot).pack(pady=(0, 4))
         self.msg = ctk.CTkLabel(box, text="", font=C.font(12), text_color=C.ERR, wraplength=340, justify="center")
         self.msg.pack(padx=30, pady=(0, 24))
         self.user.bind("<Return>", lambda _e: self.submit())
@@ -39,10 +35,23 @@ class LoginView(ctk.CTkFrame):
         self.user.focus_set()
         self._poll_usb()
 
-    def _face_toggled(self) -> None:
-        self.face_note.configure(text="" if self.face.get() else
-                                 "Hanya verifikasi wajah yang dilewati. Password dan USB tetap wajib. "
-                                 "Ini kemudahan khusus prototipe akademik.")
+    def forgot(self) -> None:
+        from sentinel.ui.dialogs import FormDialog, RecoveryCodeDialog
+        ctx, app = self.app.ctx, self.app
+
+        def validate(v: dict) -> str | None:
+            if not v["u"].strip() or not v["c"].strip() or not v["p"]:
+                return "Isi username, kode pemulihan, dan password baru."
+            return None if v["p"] == v["p2"] else "Konfirmasi password baru tidak sama."
+
+        def done(new_code: str) -> None:
+            self.msg.configure(text="Password diganti. Login dengan password baru.", text_color=C.OK)
+            RecoveryCodeDialog(app, new_code, "Kode lama sudah terpakai dan tidak berlaku lagi. Simpan kode BARU ini.")
+        FormDialog(app, "Lupa Password", "Masukkan kode pemulihan akun Anda. Faktor USB/wajah tetap diperlukan saat login.",
+                   [("u", "Username", False), ("c", "Kode pemulihan (XXXX-XXXX-XXXX-XXXX)", False),
+                    ("p", "Password baru (min. 8 karakter)", True), ("p2", "Ulangi password baru", True)],
+                   "Atur Ulang Password", lambda v: ctx.auth.reset_password_with_recovery_code(v["u"], v["c"], v["p"]),
+                   done, validate)
 
     def _poll_usb(self) -> None:
         if not self._alive:
@@ -55,12 +64,12 @@ class LoginView(ctk.CTkFrame):
         self.after(3000, self._poll_usb)
 
     def submit(self) -> None:
-        username, password, bio = self.user.get(), self.pw.get(), bool(self.face.get())
+        username, password = self.user.get(), self.pw.get()
         if not username or not password:
             self.msg.configure(text="Isi username dan password.", text_color=C.ERR)
             return
         self.btn.configure(state="disabled")
-        self.msg.configure(text="Memverifikasi… (hadap kamera bila Face Verification ON)" if bio else "Memverifikasi…",
+        self.msg.configure(text="Memverifikasi… (hadap kamera bila verifikasi wajah diwajibkan akun ini)",
                            text_color=C.MUTED)
         ctx = self.app.ctx
 
@@ -71,7 +80,7 @@ class LoginView(ctk.CTkFrame):
             self.btn.configure(state="normal")
             self.pw.delete(0, "end")
             self.msg.configure(text=self.app.describe_error(exc), text_color=C.ERR)
-        self.app.run(lambda: ctx.auth.login(username, password, bio), done, failed)
+        self.app.run(lambda: ctx.auth.login(username, password), done, failed)
 
     def destroy(self) -> None:
         self._alive = False

@@ -71,6 +71,28 @@ class Database:
         sql = resources.files("sentinel.database").joinpath("schema.sql").read_text(encoding="utf-8")
         self.conn().executescript(sql)
 
+    def migrate(self) -> list[str]:
+        """Idempotent in-place upgrade of databases created by earlier versions. Returns the changes applied."""
+        applied: list[str] = []
+        cols = {r["name"] for r in self.all("PRAGMA table_info(users)")}
+        if not cols:
+            return applied  # empty database: init_schema() creates everything
+        additions = (
+            ("require_face", "INTEGER NOT NULL DEFAULT 0 CHECK (require_face IN (0,1))"),
+            ("require_usb", "INTEGER NOT NULL DEFAULT 1 CHECK (require_usb IN (0,1))"),
+            ("recovery_code_hash", "TEXT NULL"),
+            ("recovery_code_created_at", "TEXT NULL"),
+        )
+        with self.transaction():
+            for name, ddl in additions:
+                if name not in cols:
+                    self.run(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
+                    applied.append(name)
+            if "require_face" in applied:
+                # Accounts that already enrolled a face keep the protection the old default (switch ON) gave them.
+                self.run("UPDATE users SET require_face=1 WHERE id IN (SELECT user_id FROM biometric_templates)")
+        return applied
+
     # -- transactions ------------------------------------------------------
     @contextmanager
     def transaction(self) -> Iterator[Any]:

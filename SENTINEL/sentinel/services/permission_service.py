@@ -33,10 +33,12 @@ class Action(str, Enum):
     VERIFY_LEDGER = "verify_ledger"
     MANAGE_OWN_FACE = "manage_own_face"
     RESET_FACE = "reset_face"
+    MANAGE_OWN_SECURITY = "manage_own_security"
     ADD_NOTE = "add_note"
 
 
-_COMMON = {Action.VIEW_OWN_CASES, Action.VERIFY_LEDGER, Action.VIEW_AUDIT, Action.MANAGE_OWN_FACE}
+_COMMON = {Action.VIEW_OWN_CASES, Action.VERIFY_LEDGER, Action.VIEW_AUDIT, Action.MANAGE_OWN_FACE,
+           Action.MANAGE_OWN_SECURITY}
 ROLE_ACTIONS: dict[str, frozenset[Action]] = {
     ADMIN: frozenset(_COMMON | {
         Action.VIEW_ALL_CASES, Action.CREATE_CASE, Action.UPDATE_CASE, Action.ASSIGN_ANALYST,

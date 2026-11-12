@@ -4,7 +4,7 @@ Sumber kebenaran: `sentinel/database/schema.sql`. Semua tabel mengikuti SRS 9.1;
 
 | Tabel | Kegunaan | Catatan |
 |---|---|---|
-| `users` | akun, role, status, lockout (`failed_attempts`, `locked_until`) | username unik NOCASE; hash Argon2id |
+| `users` | akun, role, status, lockout (`failed_attempts`, `locked_until`), `require_face`, `require_usb`, `recovery_code_hash`, `recovery_code_created_at` | username unik NOCASE; hash Argon2id; migrasi otomatis dari v1.2 (`Database.migrate`) |
 | `usb_devices` | satu USB global `ACTIVE`; yang lama `REVOKED` | hanya hash token + serial volume |
 | `biometric_templates` | embedding terenkripsi + metadata model/detector/dim/metric/threshold/versi | satu per user; tanpa foto |
 | `cases` | nomor `CASE-NNN`, status OPEN/IN_REVIEW/CLOSED, `created_by`, `assigned_analyst_id` | |

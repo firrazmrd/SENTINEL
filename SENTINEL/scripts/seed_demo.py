@@ -22,7 +22,8 @@ for username, name, role in (("investigator1", "Rina Investigator", "INVESTIGATO
                              ("analyst1", "Dimas Analyst", "FORENSIC_ANALYST"),
                              ("auditor1", "Sari Auditor", "AUDITOR")):
     if username not in existing:
-        ctx.users.create_user(admin, username, name, DEMO_PASSWORD, role)
+        created = ctx.users.create_user(admin, username, name, DEMO_PASSWORD, role)
+        print(f"{username}: kode pemulihan {created['recovery_code']}  (simpan; hanya ditampilkan sekali)")
 users = {u["username"]: u for u in ctx.users.list_users(admin)}
 as_user = lambda n: type(admin)(users[n]["id"], n, users[n]["full_name"], users[n]["role"])
 inv, ana = as_user("investigator1"), as_user("analyst1")

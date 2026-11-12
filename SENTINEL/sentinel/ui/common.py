@@ -9,6 +9,9 @@ import customtkinter as ctk
 BG, PANEL, PANEL_2 = "#0b1220", "#111a2e", "#16223b"
 ACCENT, ACCENT_HOVER = "#14b8a6", "#0d9488"
 TEXT, MUTED, OK, WARN, ERR = "#e6edf7", "#8a9bb8", "#34d399", "#fbbf24", "#f87171"
+# Settings page (blue/navy scheme from the design reference)
+BLUE, BLUE_HOVER = "#2f81ed", "#2468c9"
+NAVY_DEEP, NAVY_BTN, NAVY_BTN_HOVER, BORDER = "#0d1320", "#1a2540", "#22324f", "#1e2b47"
 FONT = "Segoe UI"
 
 

@@ -11,11 +11,12 @@ def test_enroll_and_verify(env):
     tpl = env.ctx.db.one("SELECT * FROM biometric_templates WHERE user_id=?", (u.id,))
     assert tpl["embedding_dim"] == 512 and tpl["model_name"] == "ArcFace" and tpl["threshold"] == 0.68
     assert len(tpl["encrypted_embedding"]) == 512 * 4 + 16          # AES-GCM: raw floats + tag, no plaintext
+    env.ctx.account.apply_auth_requirements(u, require_face=True, require_usb=True)
     env.camera.frames = ["alice+1", "alice+1", "alice+1"]            # same person, slight variation
-    assert env.ctx.auth.login("invest", PASSWORD, True).id == u.id
+    assert env.ctx.auth.login("invest", PASSWORD).id == u.id
     env.camera.frames = ["bob"] * 3                                  # someone else
     with pytest.raises(BiometricError):
-        env.ctx.auth.login("invest", PASSWORD, True)
+        env.ctx.auth.login("invest", PASSWORD)
 
 
 @pytest.mark.parametrize("frames", [["noface"] * 3, ["two"] * 3])
@@ -26,9 +27,10 @@ def test_no_face_or_multiple_faces_fail(env, frames):
         env.ctx.biometric.enroll(u)
     env.camera.frames = ["alice"] * 3
     env.ctx.biometric.enroll(u)
+    env.ctx.account.apply_auth_requirements(u, require_face=True, require_usb=True)
     env.camera.frames = frames
     with pytest.raises(BiometricError):
-        env.ctx.auth.login("invest", PASSWORD, True)
+        env.ctx.auth.login("invest", PASSWORD)
 
 
 def test_verification_is_one_to_one(env):
@@ -37,10 +39,12 @@ def test_verification_is_one_to_one(env):
     env.ctx.biometric.enroll(a)
     env.camera.frames = ["bob"] * 3
     env.ctx.biometric.enroll(b)
+    for who in (a, b):
+        env.ctx.account.apply_auth_requirements(who, require_face=True, require_usb=True)
     env.camera.frames = ["alice"] * 3            # Alice's face must not log in as Bob
     with pytest.raises(BiometricError):
-        env.ctx.auth.login("ana_b", PASSWORD, True)
-    assert env.ctx.auth.login("inv_a", PASSWORD, True)
+        env.ctx.auth.login("ana_b", PASSWORD)
+    assert env.ctx.auth.login("inv_a", PASSWORD)
 
 
 def test_template_delete_and_reset_rules(env):
