@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import uuid
+from typing import Callable
 
 from sentinel.database.connection import Database
 from sentinel.database.repositories import BiometricRepo, SettingsRepo
@@ -11,11 +12,14 @@ from sentinel.devices.face_engine import FaceEngine
 from sentinel.security.biometric_crypto import BiometricCrypto
 from sentinel.services.audit_service import AuditService
 from sentinel.services.permission_service import Action, CurrentUser, PermissionService
-from sentinel.utils.exceptions import BiometricError, DecryptionError, NotFoundError
+from sentinel.utils.exceptions import BiometricError, DecryptionError, DeviceError, NotFoundError
 from sentinel.utils.timeutil import now_iso
 
 ENROLL_FRAMES = 3
 VERIFY_ATTEMPTS = 3
+# Stages reported while a login verifies a face (the login screen renders them as status labels).
+CAMERA_INITIALIZING, CAMERA_ACTIVE, SCANNING, VERIFYING = "CAMERA_INITIALIZING", "CAMERA_ACTIVE", "SCANNING", "VERIFYING"
+VERIFIED, FAILED, CAMERA_UNAVAILABLE = "VERIFIED", "FAILED", "CAMERA_UNAVAILABLE"
 
 
 def _normalize(v: list[float]) -> list[float]:
@@ -94,8 +98,19 @@ class BiometricService:
             self._users.update(user_id, require_face=0)
             self._audit.record("BIOMETRIC_TEMPLATE_DELETED", actor_id=actor.id, target_type="user", target_id=user_id)
 
-    def verify(self, user_id: str) -> float:
-        """Raises BiometricError unless the live face matches the stored template. Returns the distance."""
+    def verify(self, user_id: str, on_stage: Callable[[str], None] | None = None,
+               on_stream: Callable[[FrameStream], None] | None = None) -> float:
+        """Raises BiometricError unless the live face matches the stored template. Returns the distance.
+        The camera is opened only here, only for the duration of the check, and always released. Frames stay in
+        local variables and are never written anywhere. `on_stage` receives the FACE_STAGES in order (worker
+        thread); `on_stream` receives the live stream so a UI can show a preview (it is closed when we return)."""
+        def emit(stage: str) -> None:
+            if on_stage is not None:
+                try:
+                    on_stage(stage)
+                except Exception:  # noqa: BLE001 - a UI callback must never break authentication
+                    pass
+
         tpl = self._repo.get(user_id)
         if tpl is None:
             raise BiometricError("Akun ini mewajibkan verifikasi wajah tetapi belum memiliki template wajah. "
@@ -107,15 +122,42 @@ class BiometricService:
             stored = self._crypto.decrypt(tpl["nonce"], tpl["encrypted_embedding"], user_id)
         except DecryptionError as exc:
             raise BiometricError(str(exc)) from exc
+
+        emit(CAMERA_INITIALIZING)
+        try:
+            stream = self._camera.open_stream()
+        except DeviceError:
+            emit(CAMERA_UNAVAILABLE)
+            raise
+        try:
+            emit(CAMERA_ACTIVE)
+            if on_stream is not None:
+                on_stream(stream)
+            emit(SCANNING)
+            frames = stream.grab(VERIFY_ATTEMPTS, 0.5)
+            emit(VERIFYING)
+            dist = self._match(stored, tpl["threshold"], frames)
+            emit(VERIFIED)
+            return dist
+        except DeviceError:
+            emit(CAMERA_UNAVAILABLE)
+            raise
+        except BiometricError:
+            emit(FAILED)
+            raise
+        finally:
+            stream.close()
+
+    def _match(self, stored: list[float], threshold: float, frames: list) -> float:
         last_err: BiometricError | None = None
-        for frame in self._camera.capture_frames(VERIFY_ATTEMPTS, interval=0.5):
+        for frame in frames:
             try:
                 live = self._engine.embed(frame)
             except BiometricError as exc:  # no face / several faces: try the next frame
                 last_err = exc
                 continue
             dist = cosine_distance(stored, live)
-            if dist <= tpl["threshold"]:
+            if dist <= threshold:
                 return dist
             raise BiometricError("Wajah tidak cocok dengan template akun ini.")
         raise last_err or BiometricError("Wajah tidak terdeteksi.")

@@ -52,3 +52,11 @@ Pesan gagal pada tahap password dibuat generik; password/username salah tidak di
 - Pemulihan USB: bila tidak ada USB aktif (setup terhenti / dicabut), layar login menawarkan registrasi dengan kredensial Admin; bila ada USB aktif jalur ini tertutup.
 - Hanya Admin aktif terakhir yang dilindungi dari penonaktifan/penurunan role.
 - DeepFace 0.0.102 menarik `opencv-contrib-python-headless` (bukan `opencv-python`); cukup untuk VideoCapture, GUI tetap CustomTkinter.
+
+
+## Tambahan redesign v1.3
+- **Login berstahap**: `BiometricService.verify(user_id, on_stage, on_stream)` membuka stream kamera hanya selama pemeriksaan, melaporkan tahap
+  (`CAMERA_INITIALIZING → CAMERA_ACTIVE → SCANNING → VERIFYING → VERIFIED/FAILED/CAMERA_UNAVAILABLE`) dan selalu menutup stream. UI menerima tahap lewat queue thread-safe.
+- **SessionGuard** (`services/session_guard.py`): memutuskan status USB selama sesi (`OK/NOT_REQUIRED/DISCONNECTED/UNKNOWN`) dari kebijakan akun; UI (`MainShell`) yang menampilkan overlay,
+  hitung mundur, dan menutup aplikasi. Event audit: `SESSION_USB_DISCONNECTED`, `SESSION_USB_RECONNECTED`, `SESSION_CLOSED_USB_REMOVED`.
+- **Design system** di `ui/common.py`: token warna/spasi/radius, `init_fonts()` (IBM Plex Sans dibundel + Cascadia Code), komponen `StatusDot`, `StatusPill`, `Panel`, `DataTable`.

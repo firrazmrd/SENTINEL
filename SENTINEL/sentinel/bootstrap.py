@@ -24,6 +24,7 @@ from sentinel.services.evidence_service import EvidenceService
 from sentinel.services.ledger_service import LedgerService
 from sentinel.services.message_service import MessageService
 from sentinel.services.permission_service import CurrentUser, PermissionService
+from sentinel.services.session_guard import SessionGuard
 from sentinel.services.steganography_service import SteganographyService
 from sentinel.services.usb_service import UsbService
 from sentinel.services.user_service import UserService
@@ -71,7 +72,9 @@ class AppContext:
                                         settings.evidence_dir, settings.max_file_bytes, _ext(settings))
         self.messages = MessageService(db, msgs, users, cases, msg_crypto, self.perms, self.audit)
         self.stego = SteganographyService(db, R.StegoRepo(db), cases, msg_crypto, self.perms, self.audit)
-        self.dashboard = DashboardService(cases, evid, msgs, audit_r, users, self.perms)
+        self.dashboard = DashboardService(cases, evid, msgs, audit_r, users, self.perms,
+                                          ledger=self.ledger, usb=self.usb, bio=self.biometric)
+        self.session_guard = SessionGuard(users, self.usb, self.audit)
         self._users_repo = users
 
     def needs_usb_setup(self) -> bool:

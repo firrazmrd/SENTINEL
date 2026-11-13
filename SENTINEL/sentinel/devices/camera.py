@@ -41,6 +41,7 @@ class OpenCvStream:
         self._cap, self._lock, self._stop = cap, threading.Lock(), threading.Event()
         self._frame: Any | None = None
         self._error: str | None = None
+        self._t0 = time.monotonic()
         self._thread = threading.Thread(target=self._loop, name="sentinel-camera", daemon=True)
         self._thread.start()
 
@@ -64,6 +65,7 @@ class OpenCvStream:
             return None if self._frame is None else self._frame.copy()
 
     def grab(self, count: int, interval: float = 0.4) -> list[Any]:
+        time.sleep(max(0.0, 0.9 - (time.monotonic() - self._t0)))  # auto-exposure warm-up
         frames: list[Any] = []
         for i in range(count):
             deadline = time.monotonic() + 3.0

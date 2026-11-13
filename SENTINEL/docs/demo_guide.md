@@ -1,18 +1,30 @@
-# Panduan demo (data dummy)
+# Panduan Demonstrasi SENTINEL v1.3 (untuk dosen)
 
-Persiapan: `.\scripts\run_app.ps1`; siapkan satu flash drive kosong untuk demo. Opsional: `python scripts\seed_demo.py` membuat akun
-`investigator1`, `analyst1`, `auditor1` (password `Demo-Pass-123`), `CASE-001`, satu bukti, dan satu pesan.
+Gunakan **data dummy**. Semua path di bawah memakai default `scripts\run_app.ps1` (`D:\SENTINEL_DATA`; bila tidak ada drive D, ganti `D:` dengan drive sistem).
+Alat bantu: Windows Explorer, flash drive kosong, webcam. Siapkan juga satu file dummy (mis. `log_dummy.txt`).
 
-1. **First-run**: buat Admin → pasang flash drive → "Daftarkan USB". Jelaskan: key acak di Credential Manager, database SQLCipher.
-2. **Login Admin**: password + USB; daftarkan wajah di *Settings*, centang "Wajibkan verifikasi wajah saat login" lalu *Terapkan*; menonaktifkannya butuh password dan dicatat di audit.
-3. **User Management**: Admin membuat Investigator, Forensic Analyst, Auditor. Logout.
-4. **Investigator**: login (password + USB; wajah tidak wajib secara default). *Cases* → buat `CASE-001`. (Admin menugaskan Analyst: login Admin → *Cases* → pilih kasus → Tugaskan; SRS 4.2.)
-5. **Upload bukti**: *Evidence* → pilih kasus → Upload file dummy → tampilkan SHA-256 sumber; tunjukkan file `.sntenc` di `<DATA_DIR>\evidence\CASE-001\` tidak berisi teks asli.
-6. **Pesan**: *Secure Messages* → kirim ke Analyst (Vigenère + AES-256-GCM). Tunjukkan `messages.ciphertext` hanya blob (jelaskan di slide, DB terenkripsi).
-7. **Steganografi**: pilih PNG, tulis pesan, simpan sebagai PNG baru; lalu ekstrak.
-8. **Analyst**: login → kasus ditugaskan → baca pesan → *Dekripsi & Verifikasi Hash* (VALID) → *Ekspor Plaintext*.
-9. **Auditor**: login → menu hanya Cases/Evidence (metadata)/Ledger/Activity Logs; *Verifikasi Hash Ciphertext*; *Integrity Ledger → Verifikasi* (VALID). Tidak ada tombol dekripsi, tidak ada menu Pesan/Stego.
-10. **Uji perubahan data**: `python scripts\tamper_demo.py` mengubah SALINAN ledger/ciphertext dan menunjukkan deteksinya (data asli tidak berubah).
-11. **Batasan** (README): USB dapat dikloning, tanpa liveness, hash chain tanpa anchor (tail truncation), keyring = akun Windows.
+| # | Langkah | Yang dilakukan | Poin penjelasan |
+|---|---|---|---|
+| 1 | Ekstrak project | `Expand-Archive "$HOME\Downloads\SENTINEL_v1_3_project.zip" D:\Projects` | Struktur folder: `sentinel\`, `assets\fonts`, `scripts`, `docs` |
+| 2 | Install dependensi | `py -3.13 -m venv .venv` → `.\scripts\install_deps.ps1 -Biometric` → `.\.venv\Scripts\python.exe scripts\prefetch_models.py` | Semua ke `.venv`; cache ke `D:\DevCache`; model ArcFace diunduh sekali |
+| 3 | Jalankan aplikasi | `.\scripts\run_app.ps1` | Konsol menampilkan lokasi data & model |
+| 4 | Buat akun Admin | Isi username/nama/password → *Buat Admin & Database Terenkripsi* | 4 key acak masuk Credential Manager; layar berikutnya **kode pemulihan** (centang konfirmasi → *Selesai*) |
+| 5 | Daftarkan wajah | Login dulu (langkah 6), lalu *Settings → Daftarkan / Perbarui Wajah (Webcam)* → preview live → *Ambil & Daftarkan* | Hanya embedding terenkripsi (AES-GCM) yang disimpan, bukan foto; tanpa liveness |
+| 6 | Daftarkan USB | Wizard: colok flash drive → *Segarkan* → *Daftarkan USB*. (Ganti kemudian: *Settings → Cari USB → Buat USB Dongle*) | Marker `.sentinel-token` + hash token + volume ID; dapat dikloning |
+| 7 | Login sesuai konfigurasi | *Settings*: centang *Wajibkan verifikasi wajah* + *Wajibkan USB dongle* → *Terapkan* → Logout → Login | Kamera menyala **setelah** password lolos; status `CAMERA INITIALIZING → ACTIVE → SCANNING → VERIFYING → VERIFIED`. Cabut USB saat sesi → overlay + hitung mundur → aplikasi menutup |
+| 8 | Buat akun pengguna | *User Management* → buat `investigator1` (Investigator), `analyst1` (Forensic Analyst), `auditor1` | Dialog kode pemulihan tampil sekali untuk Admin; pemilik bisa membuat ulang sendiri |
+| 9 | Buat Case | Admin membuat kasus & menugaskan Analyst; atau login `investigator1` → *Cases* | Role & izin ditegakkan di service |
+| 10 | Upload bukti | Login `investigator1` → *Evidence* → *Upload Bukti…* → pilih `log_dummy.txt` | SHA-256 dihitung dulu, lalu dienkripsi ChaCha20-Poly1305 |
+| 11 | Lokasi `.sntenc` | Explorer: `D:\SENTINEL_DATA\evidence\CASE-001\EV-CASE-001-001.sntenc` (tempel path di address bar) | Isi tidak terbaca; header `SNTENC` + nonce |
+| 12 | File asli vs terenkripsi | Bandingkan `log_dummy.txt` (tidak berubah) dengan `.sntenc` (ukuran = asli + 6+1+12+16 byte; tidak bisa dibuka) | File asli hanya dibaca; ciphertext-only di penyimpanan |
+| 13 | Verifikasi integritas | *Evidence* → *Verifikasi Hash Ciphertext*. Opsional: ubah 1 byte salinan `.sntenc` → ulangi (→ `CIPHERTEXT_MODIFIED`) lalu kembalikan. `python scripts\tamper_demo.py` untuk versi aman | Hash ciphertext tidak butuh key; plaintext butuh key |
+| 14 | Dekripsi & ekspor | Login `analyst1` (kasus ditugaskan) → *Evidence* → *Dekripsi & Verifikasi Hash*, lalu *Ekspor Plaintext…* → pilih lokasi, mis. `D:\Export\log_dummy.txt` | Poly1305 memastikan keaslian; SHA-256 plaintext dicocokkan sebelum ditulis |
+| 15 | Lokasi hasil ekspor | Explorer: `D:\Export\` (folder yang Anda pilih) | Tidak ada folder tetap; hapus setelah demo |
+| 16 | Database | Explorer: `D:\SENTINEL_DATA\sentinel.db` (coba buka dengan DB Browser → gagal) | SQLCipher; key dari Credential Manager |
+| 17 | Key | `control.exe keymgr.dll` → Windows Credentials → entri `SENTINEL-…` (4 key) | Tidak ada key di file; kehilangan entri = data tak terbuka |
+| 18 | Audit Log & Ledger | *Activity Logs* (filter event) lalu *Integrity Ledger → Verifikasi Integritas Ledger*; `python scripts\tamper_demo.py` untuk simulasi perubahan | Hash chain mendeteksi perubahan di tengah rantai; ujung rantai tidak |
 
-Checklist kriteria SRS 15.4: lihat tabel di README; item 1–9 dapat dilakukan lewat langkah di atas. Item yang memerlukan perangkat (USB, webcam) perlu diperagakan di laptop.
+Tambahan singkat bila waktu cukup: **Lupa Password** (Logout → *Lupa Password?* → username + kode + password baru → kode baru muncul),
+**Dashboard** (status keamanan, integritas file, event keamanan), **cabut USB** saat sesi.
+
+Path Explorer cepat: `D:\SENTINEL_DATA` · `D:\SENTINEL_DATA\evidence` · `D:\SENTINEL_DATA\logs\sentinel.log` · `D:\DevCache\deepface\.deepface\weights`.

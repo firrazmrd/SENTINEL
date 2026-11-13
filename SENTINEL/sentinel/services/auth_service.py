@@ -47,7 +47,7 @@ class AuthService:
             self._fail(user, stage, "locked")
             raise AccountLockedError(f"Terlalu banyak percobaan gagal. Coba lagi dalam {remaining} detik.")
 
-    def login(self, username: str, password: str) -> CurrentUser:
+    def login(self, username: str, password: str, on_stage=None, on_stream=None) -> CurrentUser:
         """Password always; USB and face only when THIS account's stored settings require them (Settings page)."""
         user = self._users.get_by_username(username.strip())
         if user is None:
@@ -77,7 +77,7 @@ class AuthService:
         face_mode = "NOT_REQUIRED"
         if user["require_face"]:
             try:
-                self._bio.verify(user["id"])
+                self._bio.verify(user["id"], on_stage, on_stream)
             except BiometricError:
                 self._fail(user, "biometric", "face_failed")
                 raise

@@ -18,7 +18,7 @@ class SettingsView(C.BaseView):
     def build(self) -> None:
         scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
         scroll.pack(fill="both", expand=True)
-        wrap = ctk.CTkFrame(scroll, fg_color=C.NAVY_DEEP, border_width=1, border_color=C.BORDER, corner_radius=12)
+        wrap = ctk.CTkFrame(scroll, fg_color=C.PANEL, border_width=1, border_color=C.BORDER, corner_radius=12)
         wrap.pack(fill="x", padx=2, pady=2)
         self._saved: dict | None = None
         self._drives: dict[str, Any] = {}
@@ -32,9 +32,9 @@ class SettingsView(C.BaseView):
         self.usb_status = self._stat_label(g, "USB dongle: …", 2)
         self.drive_var = ctk.StringVar(value=NO_DRIVE)
         self.drive_menu = ctk.CTkOptionMenu(g, variable=self.drive_var, values=[NO_DRIVE], height=36, anchor="w",
-                                            font=C.font(12), dropdown_font=C.font(12), fg_color=C.NAVY_BTN,
-                                            button_color=C.NAVY_BTN, button_hover_color=C.NAVY_BTN_HOVER,
-                                            text_color=C.TEXT, dropdown_fg_color=C.NAVY_BTN, corner_radius=8)
+                                            font=C.font(12), dropdown_font=C.font(12), fg_color=C.PANEL_2,
+                                            button_color=C.PANEL_2, button_hover_color=C.HOVER_2,
+                                            text_color=C.TEXT, dropdown_fg_color=C.PANEL_2, corner_radius=8)
         self.drive_menu.grid(row=3, column=0, sticky="ew", padx=(10, 4), pady=(2, 8))
         self.btn_search = self._btn(g, "Cari USB", self.search_usb, secondary=True)
         self.btn_search.grid(row=3, column=1, sticky="ew", padx=4, pady=(2, 8))
@@ -55,7 +55,6 @@ class SettingsView(C.BaseView):
         self._btn(r, "Buat Ulang Kode Pemulihan", self.regenerate_code, secondary=True
                   ).grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
         r.grid_columnconfigure(0, weight=1)
-        ctk.CTkFrame(wrap, fg_color="transparent", height=8).pack()
 
     # -- widget helpers ------------------------------------------------------------
     def _title(self, parent: Any, text: str, first: bool = False) -> None:
@@ -63,7 +62,7 @@ class SettingsView(C.BaseView):
                      ).pack(fill="x", padx=16, pady=(14 if first else 8, 6))
 
     def _group(self, parent: Any) -> ctk.CTkFrame:
-        f = ctk.CTkFrame(parent, fg_color=C.NAVY_DEEP, border_width=1, border_color=C.BORDER, corner_radius=10)
+        f = ctk.CTkFrame(parent, fg_color=C.PANEL, border_width=1, border_color=C.BORDER, corner_radius=10)
         f.pack(fill="x", padx=14, pady=(0, 6))
         return f
 
@@ -74,12 +73,12 @@ class SettingsView(C.BaseView):
 
     def _btn(self, parent: Any, text: str, cmd: Any, secondary: bool = False) -> ctk.CTkButton:
         return ctk.CTkButton(parent, text=text, command=cmd, height=36, corner_radius=8, font=C.font(12, "bold"),
-                             fg_color=C.NAVY_BTN if secondary else C.BLUE,
-                             hover_color=C.NAVY_BTN_HOVER if secondary else C.BLUE_HOVER, text_color=C.TEXT)
+                             fg_color=C.PANEL_2 if secondary else C.ACCENT,
+                             hover_color=C.HOVER_2 if secondary else C.ACCENT_HOVER, text_color=C.TEXT)
 
     def _check(self, parent: Any, text: str, row: int) -> ctk.CTkCheckBox:
-        cb = ctk.CTkCheckBox(parent, text=text, font=C.font(12), text_color=C.TEXT, fg_color=C.BLUE,
-                             hover_color=C.BLUE_HOVER, border_color="#5b6b8a", checkbox_width=18, checkbox_height=18)
+        cb = ctk.CTkCheckBox(parent, text=text, font=C.font(12), text_color=C.TEXT, fg_color=C.ACCENT,
+                             hover_color=C.ACCENT_HOVER, border_color="#5b6b8a", checkbox_width=18, checkbox_height=18)
         cb.grid(row=row, column=0, columnspan=3, sticky="w", padx=12, pady=4)
         return cb
 
@@ -188,7 +187,7 @@ class SettingsView(C.BaseView):
 
         def shown(code: str) -> None:
             self.refresh()
-            RecoveryCodeDialog(app, code, "Kode ini dipakai pada Lupa Password di halaman login.")
+            RecoveryCodeDialog(app, code, "Kode ini dipakai pada Lupa Password di halaman login.", self.refresh)
         FormDialog(app, "Konfirmasi Password", "Masukkan password Anda untuk membuat kode pemulihan baru.",
                    [("pw", "Password saat ini", True)], "Buat Kode Baru",
                    lambda v: ctx.account.regenerate_recovery_code(user, v["pw"]), shown)

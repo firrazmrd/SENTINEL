@@ -140,6 +140,16 @@ class EvidenceRepo(_Repo):
                                   "WHERE c.assigned_analyst_id=?", (user_id,))
         return self.db.scalar("SELECT count(*) FROM evidence_items")
 
+    def status_counts(self, scope: str, user_id: str) -> dict[str, int]:
+        base = "SELECT e.status AS status, count(*) AS n FROM evidence_items e JOIN cases c ON c.id=e.case_id"
+        if scope == "created":
+            rows = self.db.all(base + " WHERE c.created_by=? GROUP BY e.status", (user_id,))
+        elif scope == "assigned":
+            rows = self.db.all(base + " WHERE c.assigned_analyst_id=? GROUP BY e.status", (user_id,))
+        else:
+            rows = self.db.all(base + " GROUP BY e.status")
+        return {r["status"]: r["n"] for r in rows}
+
     def insert(self, row: Row) -> None:
         self.db.run(
             "INSERT INTO evidence_items(id,evidence_code,case_id,original_filename,mime_type,original_size,"

@@ -43,7 +43,10 @@ def app(tmp_path):
     a.errors = []
     a.show_error = lambda exc: a.errors.append(exc)
     yield a
-    a.on_close()
+    try:
+        a.on_close()
+    except tk.TclError:  # a test may already have closed the app (USB-removed shutdown)
+        pass
 
 
 def test_full_gui_flow(app):
@@ -63,7 +66,7 @@ def test_full_gui_flow(app):
     view._do_register()
     wait(app, lambda: isinstance(app._frame, LoginView))
     login = app._frame
-    wait(app, lambda: "valid" in login.usb.cget("text").lower())
+    wait(app, lambda: "valid" in login.usb_text.cget("text").lower())
     login.user.insert(0, "admin"); login.pw.insert(0, "wrong-pass-1")
     login.submit()
     wait(app, lambda: login.msg.cget("text") == "Username atau password salah.")
@@ -75,6 +78,12 @@ def test_full_gui_flow(app):
         shell.navigate(key)
         pump(app, 0.6)
         assert not app.errors, (key, app.errors)
+    # dashboard: status strip is filled from real data
+    shell.navigate("dashboard"); pump(app, 0.5)
+    dash = shell._view
+    wait(app, lambda: dash._cells["security"][1].cget("text") in ("AMAN", "PERHATIAN", "KRITIS"))
+    assert dash._cells["usb"][1].cget("text") == "TERHUBUNG" and dash._cells["ledger"][1].cget("text") == "VALID"
+    assert getattr(app._devices.camera, "opened", 0) == 0     # face not required: the camera was never switched on
     # cases: create one as Admin
     shell.navigate("cases"); pump(app, 0.4)
     v = shell._view
@@ -121,3 +130,78 @@ def test_gui_role_menus_and_denials(app):
     assert "users" not in shown("INVESTIGATOR") and "users" in shown("ADMIN")
     assert not ({"messages", "stego"} & shown("AUDITOR"))
     assert {"cases", "evidence", "ledger", "audit"} <= shown("AUDITOR")
+
+
+def _prepared_app(tmp_path, require_face):
+    """An installation that already finished first-run, so the app starts on the login screen."""
+    from sentinel.ui.app import SentinelApp
+    keyring.set_keyring(MemoryKeyring())
+    usb_dir = tmp_path / "usb"; usb_dir.mkdir()
+    settings = Settings(data_dir=tmp_path / "data", deepface_home=tmp_path / "m")
+    devices = bootstrap.Devices(FakeUsb(usb_dir), FakeCamera(), FakeFace())
+    ctx, admin = bootstrap.first_run(settings, "admin", "Admin Utama", PASSWORD, devices)
+    ctx.usb.register(admin, devices.usb.drives[0])
+    if require_face:
+        devices.camera.frames = ["alice"] * 3
+        ctx.biometric.enroll(admin)
+        ctx.account.apply_auth_requirements(admin, require_face=True, require_usb=True)
+    ctx.close()
+    try:
+        a = SentinelApp(settings, devices)
+    except tk.TclError as exc:
+        pytest.skip(f"no display: {exc}")
+    a.errors = []
+    a.show_error = lambda exc: a.errors.append(exc)
+    return a, devices
+
+
+@pytest.mark.parametrize("who,ok", [("alice+1", True), ("bob", False)])
+def test_gui_login_camera_preview_and_stages(tmp_path, who, ok):
+    from sentinel.ui.app import MainShell
+    app, devices = _prepared_app(tmp_path, require_face=True)
+    try:
+        login = app._frame
+        seen = []
+        real = login.camera.set_stage
+        login.camera.set_stage = lambda st: (seen.append(st), real(st))
+        assert login.camera.stage == "IDLE"                       # standby: no camera before the credentials are checked
+        devices.camera.frames = [who] * 3
+        login.user.insert(0, "admin"); login.pw.insert(0, PASSWORD)
+        login.submit()
+        if ok:
+            wait(app, lambda: isinstance(app._frame, MainShell))
+            assert seen[:5] == ["CAMERA_INITIALIZING", "CAMERA_ACTIVE", "SCANNING", "VERIFYING", "VERIFIED"]
+        else:
+            wait(app, lambda: login.btn.cget("state") == "normal" and login.msg.cget("text"))
+            assert seen[-1] == "FAILED" and "tidak cocok" in login.msg.cget("text")
+        assert devices.camera.streams and all(s.closed for s in devices.camera.streams)   # camera always released
+    finally:
+        app.on_close()
+
+
+def test_gui_usb_removed_locks_then_reconnect_unlocks_then_expiry_closes(tmp_path):
+    from sentinel.ui.app import MainShell
+    app, devices = _prepared_app(tmp_path, require_face=False)
+    login = app._frame
+    login.user.insert(0, "admin"); login.pw.insert(0, PASSWORD); login.submit()
+    wait(app, lambda: isinstance(app._frame, MainShell))
+    shell = app._frame
+    pump(app, 0.4)
+    drives = list(devices.usb.drives)
+    devices.usb.drives = []                                         # USB pulled out
+    shell._guard_tick()
+    wait(app, lambda: shell._locked and shell._overlay is not None)
+    shell.navigate("cases")                                         # sensitive navigation is blocked while locked
+    assert shell._view.__class__.__name__ == "DashboardView"
+    devices.usb.drives = drives                                     # re-inserted inside the grace period
+    shell._guard_tick()
+    wait(app, lambda: not shell._locked and shell._overlay is None)
+    devices.usb.drives = []
+    shell._guard_tick()
+    wait(app, lambda: shell._locked)
+    shell._deadline = 0                                             # grace period over -> closes the app
+    closed = []
+    real_close = app.on_close
+    app.on_close = lambda: (closed.append(1), real_close())
+    wait(app, lambda: closed)
+    assert app.ctx is not None

@@ -62,7 +62,13 @@ class FakeCamera:
         self.frames = ["alice"] * 3
 
     def open_stream(self):
-        return FakeStream(self)
+        if getattr(self, "fail_open", False):
+            from sentinel.utils.exceptions import DeviceError
+            raise DeviceError("Kamera tidak dapat dibuka (uji).")
+        self.opened = getattr(self, "opened", 0) + 1
+        st = FakeStream(self)
+        self.streams = getattr(self, "streams", []) + [st]
+        return st
 
     def capture_frames(self, count=1, interval=0.4):
         return list(self.frames[:count]) if len(self.frames) >= count else list(self.frames)

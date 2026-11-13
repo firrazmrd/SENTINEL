@@ -11,7 +11,7 @@ from sentinel.ui import common as C
 class StartupErrorView(ctk.CTkFrame):
     def __init__(self, app: Any, message: str) -> None:
         super().__init__(app, fg_color=C.BG)
-        box = ctk.CTkFrame(self, fg_color=C.PANEL, corner_radius=14)
+        box = ctk.CTkFrame(self, fg_color=C.PANEL, border_width=1, border_color=C.BORDER, corner_radius=C.RADIUS)
         box.place(relx=0.5, rely=0.5, anchor="center")
         ctk.CTkLabel(box, text="SENTINEL tidak dapat dimulai", font=C.font(20, "bold"), text_color=C.ERR).pack(padx=40, pady=(28, 8))
         ctk.CTkLabel(box, text=message, font=C.font(13), text_color=C.TEXT, wraplength=520, justify="left").pack(padx=40, pady=8)
@@ -24,7 +24,7 @@ class SetupView(ctk.CTkFrame):
     def __init__(self, app: Any, mode: str) -> None:
         super().__init__(app, fg_color=C.BG)
         self.app, self.mode, self.admin = app, mode, None
-        self.box = ctk.CTkFrame(self, fg_color=C.PANEL, corner_radius=14)
+        self.box = ctk.CTkFrame(self, fg_color=C.PANEL, border_width=1, border_color=C.BORDER, corner_radius=C.RADIUS)
         self.box.place(relx=0.5, rely=0.5, anchor="center")
         self.msg: ctk.CTkLabel
         (self._step_admin if mode == "first_run" else self._step_usb)()
@@ -32,7 +32,7 @@ class SetupView(ctk.CTkFrame):
     def _clear(self, title: str, sub: str) -> None:
         for w in self.box.winfo_children():
             w.destroy()
-        ctk.CTkLabel(self.box, text=title, font=C.font(22, "bold"), text_color=C.ACCENT).pack(padx=50, pady=(28, 2))
+        ctk.CTkLabel(self.box, text=title, font=C.font(22, "bold"), text_color=C.TEXT).pack(padx=50, pady=(28, 2))
         ctk.CTkLabel(self.box, text=sub, font=C.font(11), text_color=C.MUTED, wraplength=380).pack(pady=(0, 14))
 
     def _entry(self, ph: str, show: str | None = None) -> ctk.CTkEntry:
@@ -42,7 +42,7 @@ class SetupView(ctk.CTkFrame):
 
     def _footer(self, text: str, cmd: Any) -> None:
         self.btn = ctk.CTkButton(self.box, text=text, width=340, height=40, command=cmd, fg_color=C.ACCENT,
-                                 hover_color=C.ACCENT_HOVER, text_color="#04211f", font=C.font(13, "bold"))
+                                 hover_color=C.ACCENT_HOVER, text_color=C.ON_ACCENT, font=C.font(13, "bold"))
         self.btn.pack(pady=(14, 6))
         self.msg = ctk.CTkLabel(self.box, text="", font=C.font(12), text_color=C.ERR, wraplength=360)
         self.msg.pack(padx=24, pady=(0, 24))
@@ -81,12 +81,20 @@ class SetupView(ctk.CTkFrame):
     def _step_code(self) -> None:
         self._clear("Kode Pemulihan Admin", "Simpan kode ini sekarang. Kode hanya ditampilkan sekali dan dipakai pada "
                     "Lupa Password di halaman login. Kode bisa dibuat ulang di Settings.")
-        ctk.CTkLabel(self.box, text=self.recovery_code, width=340, height=56, corner_radius=8, fg_color=C.PANEL_2,
-                     text_color=C.TEXT, font=ctk.CTkFont(family="Consolas", size=22, weight="bold")).pack(pady=6)
-        self.copy_btn = ctk.CTkButton(self.box, text="Salin Kode", width=340, fg_color=C.PANEL_2, hover_color="#22324f",
+        ctk.CTkLabel(self.box, text=self.recovery_code, width=340, height=56, corner_radius=C.RADIUS_S, fg_color=C.BG,
+                     text_color=C.CYAN, font=C.mono(22, "bold")).pack(pady=6)
+        self.copy_btn = ctk.CTkButton(self.box, text="Salin Kode", width=340, fg_color=C.PANEL_2, hover_color=C.HOVER_2,
                                       command=self._copy_code)
         self.copy_btn.pack(pady=4)
-        self._footer("Saya sudah menyimpan kode ini", self._continue_to_usb)
+        self.code_check = ctk.CTkCheckBox(self.box, text="Saya sudah menyalin dan menyimpan kode ini", font=C.font(12),
+                                          text_color=C.TEXT, fg_color=C.ACCENT, hover_color=C.ACCENT_HOVER,
+                                          command=self._code_toggled)
+        self.code_check.pack(anchor="w", padx=40, pady=(10, 0))
+        self._footer("Selesai", self._continue_to_usb)
+        self.btn.configure(state="disabled")  # enabled only after the user confirms (a statement, not a proof)
+
+    def _code_toggled(self) -> None:
+        self.btn.configure(state="normal" if self.code_check.get() else "disabled")
 
     def _copy_code(self) -> None:
         self.clipboard_clear()
@@ -109,7 +117,7 @@ class SetupView(ctk.CTkFrame):
         self.menu = ctk.CTkOptionMenu(self.box, variable=self.drive_var, values=["(tidak ada drive)"], width=340,
                                       fg_color=C.BG, button_color=C.PANEL_2)
         self.menu.pack(pady=6)
-        ctk.CTkButton(self.box, text="Segarkan daftar drive", width=340, fg_color=C.PANEL_2, hover_color="#22324f",
+        ctk.CTkButton(self.box, text="Segarkan daftar drive", width=340, fg_color=C.PANEL_2, hover_color=C.HOVER_2,
                       command=self._refresh_drives).pack()
         self._footer("Daftarkan USB", self._do_register)
         self._drives: dict[str, Any] = {}
